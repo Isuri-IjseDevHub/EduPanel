@@ -5,16 +5,20 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.validation.ConstraintValidator;
 import javax.validation.ConstraintValidatorContext;
 
+// ConstraintValidator implementation for the custom annotation '@LecturerImage'
 public class LecturerImageConstraintValidator
-        implements ConstraintValidator<lk.ijse.dep11.edupanel.validation.LecturerImage, MultipartFile> {
+        implements ConstraintValidator<LecturerImage, MultipartFile> {
 
     private long maximumFileSize;
 
+    // Initializes the validator with values from the annotation
     @Override
-    public void initialize(lk.ijse.dep11.edupanel.validation.LecturerImage constraintAnnotation) {
+    public void initialize(LecturerImage constraintAnnotation) {
         maximumFileSize = constraintAnnotation.maximumFileSize();
     }
 
+
+    // Validates the MultipartFile based on specified conditions
     @Override
     public boolean isValid(MultipartFile multipartFile, ConstraintValidatorContext constraintValidatorContext) {
         if (multipartFile == null || multipartFile.isEmpty()) return true;
