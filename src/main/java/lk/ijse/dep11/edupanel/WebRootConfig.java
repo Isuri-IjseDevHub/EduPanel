@@ -12,7 +12,7 @@ import org.springframework.core.env.Environment;
 public class WebRootConfig {
 
     // Creates and configures a HikariDataSource bean for database connection.
-    @Bean
+    @Bean(destroyMethod = "close")
     public HikariDataSource dataSource(Environment env){
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(env.getRequiredProperty("spring.datasource.url"));
