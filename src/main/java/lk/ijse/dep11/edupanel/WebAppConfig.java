@@ -10,6 +10,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.multipart.support.StandardServletMultipartResolver;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -18,10 +20,12 @@ import java.io.InputStream;
 @Configuration
 public class WebAppConfig {
     // Configures and provides a Bean representing the default Google Cloud Storage bucket for the application.
+
     @Bean
     public Bucket defaultBucket() throws IOException {
         InputStream serviceAccount = getClass()
                 .getResourceAsStream("/edu-panel-59338-firebase-adminsdk-mv4ok-2d6cff1cf3.json");
+
 
         FirebaseOptions options = new FirebaseOptions.Builder()
                 .setCredentials(GoogleCredentials.fromStream(serviceAccount))
@@ -31,6 +35,7 @@ public class WebAppConfig {
         FirebaseApp.initializeApp(options);
         return StorageClient.getInstance().bucket();
     }
+
 
     // Configure a StandardServletMultipartResolver bean to handle multipart requests
     @Bean

@@ -33,3 +33,9 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Firebase
+./src/main/resources/edu-panel-59338-firebase-adminsdk-mv4ok-2d6cff1cf3.json
+
+### database properties
+./src/main/resources/application.properties
