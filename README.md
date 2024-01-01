@@ -13,3 +13,7 @@ The backend is implemented in Java, utilizing key dependencies such as Spring We
 ### License
 Copyright &copy; 2023 DEP-11 <br>
 This project is licensed under this [MIT License](License.txt)
+
+![ENTITY RELATIONSHIP DIAGRAM.png](..%2F..%2F..%2F..%2F..%2FPictures%2FScreenshots%2FENTITY%20RELATIONSHIP%20DIAGRAM.png)
+
+![WEB SERVICES OVERVIEW.png](..%2F..%2F..%2F..%2F..%2FPictures%2FScreenshots%2FWEB%20SERVICES%20OVERVIEW.png)
