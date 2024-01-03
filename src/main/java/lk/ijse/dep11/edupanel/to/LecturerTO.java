@@ -1,21 +1,20 @@
-package lk.ijse.dep11.edupanel.to.request;
+package lk.ijse.dep11.edupanel.to;
 
 import lk.ijse.dep11.edupanel.Util.LecturerType;
-import lk.ijse.dep11.edupanel.validation.LecturerImage;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.validator.constraints.Length;
-import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.constraints.*;
-import javax.validation.groups.Default;
 import java.io.Serializable;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class LecturerReqTO implements Serializable {
+public class LecturerTO implements Serializable {
+    @Null(message = "Id should be empty")
+    private Integer id;
     @NotBlank(message = "Name can't be empty")
     @Pattern(regexp = "^[A-Za-z ]{2,}$", message = "Invalid name")
     private String name;
@@ -27,15 +26,11 @@ public class LecturerReqTO implements Serializable {
     private String qualifications;
     @NotNull(message = "Type should be either full-time or visiting")
     private LecturerType type;
-    @Null(groups = Create.class, message = "Display order should be empty")
-    @NotNull(groups = Update.class, message = "Display order can't be empty")
-    @PositiveOrZero(groups = Update.class, message = "Invalid display order")
+    @NotNull(message = "Display order can't be empty")
+    @PositiveOrZero(message = "Invalid display order")
     private Integer displayOrder;
-    @LecturerImage
-    private MultipartFile picture;
+    @Null(message = "Picture should be empty")
+    private String picture;
     @Pattern(regexp = "^http(s)://.+$", message = "Invalid linkedin url")
     private String linkedin;
-
-    public interface Create extends Default{}
-    public interface Update extends Default{}
 }

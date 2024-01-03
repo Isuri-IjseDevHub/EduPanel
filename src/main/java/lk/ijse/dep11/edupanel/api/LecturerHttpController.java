@@ -1,21 +1,25 @@
 package lk.ijse.dep11.edupanel.api;
 
-
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
-import com.google.cloud.storage.Blob;
+import lk.ijse.dep11.edupanel.entity.Lecturer;
+import lk.ijse.dep11.edupanel.entity.LinkedIn;
+import lk.ijse.dep11.edupanel.entity.Picture;
+import lk.ijse.dep11.edupanel.to.LecturerTO;
 import lk.ijse.dep11.edupanel.to.request.LecturerReqTO;
-import lk.ijse.dep11.edupanel.to.response.LecturerResTO;
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import javax.sql.DataSource;
-import javax.validation.Valid;
-import java.sql.*;
+import javax.persistence.EntityManager;
+import javax.persistence.TypedQuery;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
-
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/lecturers")
@@ -23,147 +27,176 @@ import java.util.concurrent.TimeUnit;
 public class LecturerHttpController {
 
     @Autowired
-    private DataSource pool;
-
+    private EntityManager em;
+    @Autowired
+    private ModelMapper mapper;
     @Autowired
     private Bucket bucket;
 
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping(consumes = "multipart/form-data", produces = "application/json")
+    public LecturerTO createNewLecturer(@ModelAttribute @Validated(LecturerReqTO.Create.class)
+                                        LecturerReqTO lecturerReqTo) {
+        em.getTransaction().begin();
+        try {
+            Lecturer lecturer = mapper.map(lecturerReqTo, Lecturer.class);
+            lecturer.setPicture(null);
+            lecturer.setLinkedIn(null);
+            em.persist(lecturer);
+            LecturerTO lecturerTO = mapper.map(lecturer, LecturerTO.class);
 
-    // Implement RESTful endpoint for creating a new lecturer
-    public LecturerResTO createNewLecturer(@ModelAttribute @Valid LecturerReqTO lecturer){
-        //  Inject DataSource for database connectivity
-        try (Connection connection = pool.getConnection()) {
-            connection.setAutoCommit(false);
-
-            try {
-                PreparedStatement stmInsertLecturer = connection
-                        .prepareStatement("INSERT INTO lecturer " + "(name, designation, qualifications, linkedin) " +
-                                "VALUES (?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
-                stmInsertLecturer.setString(1, lecturer.getName());
-                stmInsertLecturer.setString(2, lecturer.getDesignation());
-                stmInsertLecturer.setString(3, lecturer.getQualifications());
-                stmInsertLecturer.setString(4, lecturer.getLinkedin());
-                stmInsertLecturer.executeUpdate();
-                ResultSet generatedKeys = stmInsertLecturer.getGeneratedKeys();
-                generatedKeys.next();
-                int lecturerId = generatedKeys.getInt(1);
-                String picture = lecturerId + "-" + lecturer.getName();
-
-                if (lecturer.getPicture() != null && !lecturer.getPicture().isEmpty()) {
-                    PreparedStatement stmUpdateLecturer = connection
-                            .prepareStatement("UPDATE lecturer SET picture = ? WHERE id = ?");
-                    stmUpdateLecturer.setString(1, picture);
-                    stmUpdateLecturer.setInt(2, lecturerId);
-                    stmUpdateLecturer.executeUpdate();
-                }
-
-
-                //  Implement logic to insert a new lecturer, update picture, and assign a rank
-                final String table = lecturer.getType().equalsIgnoreCase("full-time") ? "full_time_rank": "part_time_rank";
-                Statement stm = connection.createStatement();
-                ResultSet rst = stm.executeQuery("SELECT `rank` FROM "+ table +" ORDER BY `rank` DESC LIMIT 1");
-                int rank;
-                if (!rst.next()) rank = 1;
-                else rank = rst.getInt("rank") + 1;
-                PreparedStatement stmInsertRank = connection.prepareStatement("INSERT INTO "+ table +" (lecturer_id, `rank`) VALUES (?, ?)");
-                stmInsertRank.setInt(1, lecturerId);
-                stmInsertRank.setInt(2, rank);
-                stmInsertRank.executeUpdate();
-
-                // Uploads the lecturer's picture to Google Cloud Storage and generates a signed URL for 1 day
-                String pictureUrl = null;
-                if (lecturer.getPicture() != null && !lecturer.getPicture().isEmpty()){
-                    Blob blob = (Blob) bucket.create(picture, lecturer.getPicture().getInputStream(),
-                            lecturer.getPicture().getContentType());
-                    pictureUrl = blob.signUrl(1, TimeUnit.DAYS, Storage.SignUrlOption.withV4Signature()).toString();
-                }
-
-                connection.commit();
-
-                // return statement
-                return new LecturerResTO(lecturerId,
-                        lecturer.getName(),
-                        lecturer.getDesignation(),
-                        lecturer.getQualifications(),
-                        lecturer.getType(),
-                        pictureUrl,
-                        lecturer.getLinkedin());
-
-            }catch (Throwable t){
-                connection.rollback();
-                throw t;
-            }finally {
-                connection.setAutoCommit(true);
+            if (lecturerReqTo.getLinkedin() != null) {
+                em.persist(new LinkedIn(lecturer, lecturerReqTo.getLinkedin()));
+                lecturerTO.setLinkedin(lecturerReqTo.getLinkedin());
             }
-        } catch ( Throwable e) {
-            throw new RuntimeException(e);
+
+            if (lecturerReqTo.getPicture() != null) {
+                Picture picture = new Picture(lecturer, "lecturers/" + lecturer.getId());
+                em.persist(picture);
+
+                Blob blobRef = bucket.create(picture.getPicturePath(), lecturerReqTo.getPicture().getInputStream(), lecturerReqTo.getPicture().getContentType());
+                lecturerTO.setPicture(blobRef.signUrl(1, TimeUnit.DAYS, Storage.SignUrlOption.withV4Signature()).toString());
+            }
+
+            em.getTransaction().commit();
+            return lecturerTO;
+        } catch (Throwable t) {
+            em.getTransaction().rollback();
+            throw new RuntimeException(t);
         }
     }
 
-    // Endpoint to update lecturer details using PATCH method
-    @PatchMapping("/{lecturer-id}")
-    public void updateLecturerDetails(){
-        System.out.println("updateLecturerDetails()");
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PatchMapping(value = "/{lecturer-id}", consumes = "multipart/form-data")
+    public void updateLecturerDetailsViaMultipart(@PathVariable("lecturer-id") Integer lecturerId,
+                                                  @ModelAttribute @Validated(LecturerReqTO.Update.class) LecturerReqTO lecturerReqTO) {
+        Lecturer currentLecturer = em.find(Lecturer.class, lecturerId);
+        if (currentLecturer == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+
+        em.getTransaction().begin();
+        try {
+            Lecturer newLecturer = mapper.map(lecturerReqTO, Lecturer.class);
+            newLecturer.setId(lecturerId);
+            newLecturer.setPicture(null);
+            newLecturer.setLinkedIn(null);
+
+            if (lecturerReqTO.getPicture() != null) {
+                newLecturer.setPicture(new Picture(newLecturer, "lecturers/" + lecturerId));
+            }
+            if (lecturerReqTO.getLinkedin() != null) {
+                newLecturer.setLinkedIn(new LinkedIn(newLecturer, lecturerReqTO.getLinkedin()));
+            }
+
+            updateLinkedIn(currentLecturer, newLecturer);
+
+            if (newLecturer.getPicture() != null && currentLecturer.getPicture() == null) {
+                em.persist(newLecturer.getPicture());
+                bucket.create(newLecturer.getPicture().getPicturePath(), lecturerReqTO.getPicture().getInputStream(), lecturerReqTO.getPicture().getContentType());
+            } else if (newLecturer.getPicture() == null && currentLecturer.getPicture() != null) {
+                em.remove(currentLecturer.getPicture());
+                bucket.get(currentLecturer.getPicture().getPicturePath()).delete();
+            } else if (newLecturer.getPicture() != null) {
+                em.merge(newLecturer.getPicture());
+                bucket.create(newLecturer.getPicture().getPicturePath(), lecturerReqTO.getPicture().getInputStream(), lecturerReqTO.getPicture().getContentType());
+            }
+
+            em.merge(newLecturer);
+            em.getTransaction().commit();
+        } catch (Throwable t) {
+            em.getTransaction().rollback();
+            throw new RuntimeException(t);
+        }
     }
 
-    // Endpoint to delete a lecturer using DELETE method
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PatchMapping(value = "/{lecturer-id}", consumes = "application/json")
+    public void updateLecturerDetailsViaJson(@PathVariable("lecturer-id") Integer lecturerId,
+                                             @RequestBody @Validated LecturerTO lecturerTO) {
+        Lecturer currentLecturer = em.find(Lecturer.class, lecturerId);
+        if (currentLecturer == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+
+        em.getTransaction().begin();
+        try {
+            Lecturer newLecturer = mapper.map(lecturerTO, Lecturer.class);
+            newLecturer.setId(lecturerId);
+            newLecturer.setPicture(currentLecturer.getPicture());
+            newLecturer.setLinkedIn(lecturerTO.getLinkedin() != null ? new LinkedIn(newLecturer, lecturerTO.getLinkedin()) : null);
+
+            updateLinkedIn(currentLecturer, newLecturer);
+
+            em.merge(newLecturer);
+            em.getTransaction().commit();
+        } catch (Throwable t) {
+            em.getTransaction().rollback();
+            throw new RuntimeException(t);
+        }
+    }
+
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @DeleteMapping("/{lecturer-id}")
-    public void deleteLecturer(@PathVariable("lecturer-id") int lecturerId) {
-        try (Connection connection = pool.getConnection()) {
-            PreparedStatement stmExists = connection.prepareStatement("SELECT * FROM lecturer WHERE id=?");
-            stmExists.setInt(1, lecturerId);
-            if (!stmExists.executeQuery().next()) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+    public void deleteLecturer(@PathVariable("lecturer-id") Integer lecturerId) {
+        Lecturer lecturer = em.find(Lecturer.class, lecturerId);
+        if (lecturer == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        em.getTransaction().begin();
+        try {
+            em.remove(lecturer);
 
-            connection.setAutoCommit(false);
-            try {
-
-                PreparedStatement stmIdentify = connection
-                        .prepareStatement("SELECT l.id, l.name, l.picture, " +
-                                "ftr.`rank` AS ftr, ptr.`rank` AS ptr FROM lecturer l " +
-                                "LEFT OUTER JOIN full_time_rank ftr ON l.id = ftr.lecturer_id " +
-                                "LEFT OUTER JOIN part_time_rank ptr ON l.id = ptr.lecturer_id " +
-                                "WHERE l.id = ?");
-                stmIdentify.setInt(1, lecturerId);
-                ResultSet rst = stmIdentify.executeQuery();
-                rst.next();
-                int ftr = rst.getInt("ftr");
-                int ptr = rst.getInt("ptr");
-                String picture = rst.getString("picture");
-                String tableName = ftr > 0 ? "full_time_rank" : "part_time_rank";
-                int rank = ftr > 0 ? ftr : ptr;
-
-                Statement stmDeleteRank = connection.createStatement();
-                stmDeleteRank.executeUpdate("DELETE FROM " + tableName + " WHERE `rank`=" + rank);
-
-                Statement stmShift = connection.createStatement();
-                stmShift.executeUpdate("UPDATE " + tableName + " SET `rank` = `rank` - 1 WHERE `rank` > " + rank);
-
-                PreparedStatement stmDeleteLecturer = connection
-                        .prepareStatement("DELETE FROM lecturer WHERE id = ?");
-                stmDeleteLecturer.setInt(1, lecturerId);
-                stmDeleteLecturer.executeUpdate();
-
-                if (picture != null) bucket.get(picture).delete();
-
-                connection.commit();
-            } catch (Throwable t) {
-                connection.rollback();
-                throw t;
-            } finally {
-                connection.setAutoCommit(true);
+            if (lecturer.getPicture() != null) {
+                bucket.get(lecturer.getPicture().getPicturePath()).delete();
             }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+
+            em.getTransaction().commit();
+        } catch (Throwable t) {
+            em.getTransaction().rollback();
+            throw new RuntimeException(t);
         }
     }
 
+    @GetMapping(produces = "application/json")
+    public List<LecturerTO> getAllLecturers() {
+        TypedQuery<Lecturer> query = em.createQuery("SELECT l FROM Lecturer l", Lecturer.class);
+        return getLecturerTOList(query);
+    }
 
-    // Endpoint to retrieve all lecturers using GET method
-    @GetMapping
-    public void getAllLecturers(){
-        System.out.println("getAllLecturers()");
+    @GetMapping(value = "/{lecturer-id}", produces = "application/json")
+    public LecturerTO getLecturerDetails(@PathVariable("lecturer-id") Integer lecturerId) {
+        Lecturer lecturer = em.find(Lecturer.class, lecturerId);
+        if (lecturer == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        return getLecturerTO(lecturer);
+    }
+
+    @GetMapping(params = "type=full-time", produces = "application/json")
+    public List<LecturerTO> getFullTimeLecturers() {
+        TypedQuery<Lecturer> query = em.createQuery("SELECT l FROM Lecturer l WHERE l.type = lk.ijse.dep11.edupanel.util.LecturerType.FULL_TIME", Lecturer.class);
+        return getLecturerTOList(query);
+    }
+
+    @GetMapping(params = "type=visiting", produces = "application/json")
+    public List<LecturerTO> getVisitingLecturers() {
+        TypedQuery<Lecturer> query = em.createQuery("SELECT l FROM Lecturer l WHERE l.type = lk.ijse.dep11.edupanel.util.LecturerType.VISITING", Lecturer.class);
+        return getLecturerTOList(query);
+    }
+
+    private List<LecturerTO> getLecturerTOList(TypedQuery<Lecturer> query) {
+        return query.getResultStream().map(this::getLecturerTO).collect(Collectors.toList());
+    }
+
+    private LecturerTO getLecturerTO(Lecturer lectureEntity) {
+        LecturerTO lecturerTO = mapper.map(lectureEntity, LecturerTO.class);
+        if (lectureEntity.getLinkedIn() != null) lecturerTO.setLinkedin(lectureEntity.getLinkedIn().getUrl());
+        if (lectureEntity.getPicture() != null) {
+            lecturerTO.setPicture(bucket.get(lectureEntity.getPicture().getPicturePath()).signUrl(1, TimeUnit.DAYS, Storage.SignUrlOption.withV4Signature()).toString());
+        }
+        return lecturerTO;
+    }
+
+    private void updateLinkedIn(Lecturer currentLecturer, Lecturer newLecturer){
+        if (newLecturer.getLinkedIn() != null && currentLecturer.getLinkedIn() == null) {
+            em.persist(newLecturer.getLinkedIn());
+        } else if (newLecturer.getLinkedIn() == null && currentLecturer.getLinkedIn() != null) {
+            em.remove(currentLecturer.getLinkedIn());
+        } else if (newLecturer.getLinkedIn() != null) {
+            em.merge(newLecturer.getLinkedIn());
+        }
     }
 }
