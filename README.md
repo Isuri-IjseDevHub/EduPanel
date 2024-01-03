@@ -7,6 +7,13 @@ The backend of EduPanel is implemented using Java to ensure a robust and scalabl
 
 The backend is implemented in Java, utilizing key dependencies such as Spring Web MVC for web application architecture, Lombok for reducing boilerplate code, Jackson Databind for JSON data binding, Hibernate Validator for declarative constraint validation, MySQL Connector for database connectivity, HikariCP for JDBC connection pooling, and Firebase Admin SDK for server-side access to Firebase services.
 
+In the continuous evolution of the Edupanel system at the Institute of Software Engineering (IJSE), a notable technical improvement has been introduced by adopting Hibernate as the Java Persistence API (JPA) provider. This strategic move brings forth advanced capabilities in database interaction, with a particular emphasis on schema auto-generation and entity mapping.
+
+TechStack:
+Java, Spring Web MVC , Lombok , Jackson, Hibernate Validator,
+MySQL Connector, HikariCP, and Firebase Admin SDK, Hibernate as JPA (Entity Mapping)
+Other skills: OOP, Design Patterns, Architectural Patterns
+
 ### Version
 0.1.0
 
