@@ -24,8 +24,7 @@ public class WebAppConfig {
     @Bean
     public Bucket defaultBucket() throws IOException {
         InputStream serviceAccount = getClass()
-                .getResourceAsStream("/edu-panel-59338-firebase-adminsdk-mv4ok-2d6cff1cf3.json");
-
+                .getResourceAsStream("/firebase.json");
 
         FirebaseOptions options = new FirebaseOptions.Builder()
                 .setCredentials(GoogleCredentials.fromStream(serviceAccount))
