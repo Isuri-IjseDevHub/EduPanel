@@ -21,6 +21,5 @@ Other skills: OOP, Design Patterns, Architectural Patterns
 Copyright &copy; 2023 DEP-11 <br>
 This project is licensed under this [MIT License](License.txt)
 
-![ENTITY RELATIONSHIP DIAGRAM.png](..%2F..%2F..%2F..%2F..%2FPictures%2FScreenshots%2FENTITY%20RELATIONSHIP%20DIAGRAM.png)
-
-![WEB SERVICES OVERVIEW.png](..%2F..%2F..%2F..%2F..%2FPictures%2FScreenshots%2FWEB%20SERVICES%20OVERVIEW.png)
+![ENTITY RELATIONSHIP DIAGRAM](https://github.com/Isuri-IjseDevHub/EduPanel/assets/75952849/7338a53c-9fa5-491f-98b5-555bdc022f79)
+![SCHEMAS](https://github.com/Isuri-IjseDevHub/EduPanel/assets/75952849/ff5070e8-226f-444b-a364-ca0f0e2d11fc)
